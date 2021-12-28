@@ -41,12 +41,12 @@ async fn main() {
     let framework = StandardFramework::new()
         .configure(|c|
             {
-                c.prefix(">");
-                c.dynamic_prefix(|ctx, msg| {
-                    let user_id = msg.author.id;
-                    let userdata = userdata::load(&user_id);
-                    userdata.command_prefix.clone()
-                })
+
+                c.dynamic_prefix(|ctx, msg| Box::pin(async move {
+                        userdata::init_if_not_exist(&msg.author.id);
+                        Some(userdata::load(&msg.author.id).command_prefix)
+                    })
+                )
             }
         )
         .group(&GENERAL_GROUP)
