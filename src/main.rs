@@ -1,3 +1,5 @@
+mod userdata;
+
 use serenity::async_trait;
 use serenity::client::{Client, Context, EventHandler};
 use serenity::framework::standard::{
@@ -14,11 +16,9 @@ use serenity::framework::standard::{
 };
 use serenity::framework::standard::macros::help;
 use std::collections::HashSet;
-use serenity::model::prelude::{Message, UserId};
+use serenity::model::prelude::{channel::Message, gateway::Ready, id::UserId};
 
 use std::{env};
-use std::path::Path;
-use std::fs::File;
 use dotenv::dotenv;
 
 #[group]
@@ -28,15 +28,30 @@ struct General;
 struct Handler;
 
 #[async_trait]
-impl EventHandler for Handler {}
+impl EventHandler for Handler {
+    // Botが起動したときに走る処理
+    async fn ready(&self, _: Context, ready: Ready) {
+        println!("{} is connected!", ready.user.name);
+    }
+}
 
 #[tokio::main]
 async fn main() {
     dotenv().ok();
     let framework = StandardFramework::new()
-        .configure(|c| c.prefix(">")) // set the bot's prefix to ""
+        .configure(|c|
+            {
+                c.prefix(">");
+                c.dynamic_prefix(|ctx, msg| {
+                    let user_id = msg.author.id;
+                    let userdata = userdata::load(&user_id);
+                    userdata.command_prefix.clone()
+                })
+            }
+        )
         .group(&GENERAL_GROUP)
-        .help(&HELP_COMMAND);
+        .help(&HELP_COMMAND)
+        ;
 
     // Login with a bot token from the environment
     let token = env::var("DISCORD_TOKEN").expect("token");
@@ -52,23 +67,12 @@ async fn main() {
     }
 }
 
-enum TaskStatus {
-    Waiting,
-    Doing,
-    Complete,
-    Cancelled
-}
-
-struct Task{
-    name : String,
-    description : String,
-    status : TaskStatus,
-}
-
 
 #[command]
 async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
+    println!("{}", msg.author.id);
     msg.reply(ctx, "Pong!").await?;
+    userdata::init_if_not_exist(&msg.author.id);
     Ok(())
 }
 
