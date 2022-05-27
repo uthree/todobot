@@ -2,24 +2,18 @@ mod userdata;
 
 use serenity::async_trait;
 use serenity::client::{Client, Context, EventHandler};
-use serenity::framework::standard::{
-    StandardFramework,
-    CommandResult,
-    macros::{
-        command,
-        group,
-    },
-    Args,
-    help_commands,
-    HelpOptions,
-    CommandGroup,
-};
 use serenity::framework::standard::macros::help;
-use std::collections::HashSet;
+use serenity::framework::standard::{
+    help_commands,
+    macros::{command, group},
+    Args, CommandGroup, CommandResult, HelpOptions, StandardFramework,
+};
 use serenity::model::prelude::{channel::Message, gateway::Ready, id::UserId};
+use std::collections::HashSet;
 
-use std::{env};
 use dotenv::dotenv;
+use std::env;
+use std::fs;
 
 #[group]
 #[commands(ping, prefix, todo, list)]
@@ -38,19 +32,21 @@ impl EventHandler for Handler {
 #[tokio::main]
 async fn main() {
     dotenv().ok();
+    if !fs::metadata("./data/").is_ok() {
+        fs::create_dir("./data/").unwrap()
+    }
+
     let framework = StandardFramework::new()
-        .configure(|c|
-            {
-                c.dynamic_prefix(|_, msg| Box::pin(async move {
-                        userdata::init_if_not_exist(&msg.author.id);
-                        Some(userdata::load(&msg.author.id).command_prefix)
-                    })
-                )
-            }
-        )
+        .configure(|c| {
+            c.dynamic_prefix(|_, msg| {
+                Box::pin(async move {
+                    userdata::init_if_not_exist(&msg.author.id);
+                    Some(userdata::load(&msg.author.id).command_prefix)
+                })
+            })
+        })
         .group(&GENERAL_GROUP)
-        .help(&HELP_COMMAND)
-        ;
+        .help(&HELP_COMMAND);
 
     // Login with a bot token from the environment
     let token = env::var("DISCORD_TOKEN").expect("token");
@@ -65,7 +61,6 @@ async fn main() {
         println!("An error occurred while running the client: {:?}", why);
     }
 }
-
 
 #[command]
 async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
@@ -84,7 +79,8 @@ async fn prefix(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let mut data = userdata::load(&msg.author.id);
     data.command_prefix = prefix;
     userdata::save(&data, &msg.author.id);
-    msg.reply(ctx, format!("Changed prefix: `{}`", prefix2)).await?;
+    msg.reply(ctx, format!("Changed prefix: `{}`", prefix2))
+        .await?;
     Ok(())
 }
 
@@ -98,7 +94,8 @@ async fn todo(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let task = userdata::Task::new(taskname.clone(), "".to_string());
     data.add_task(task);
     userdata::save(&data, &msg.author.id);
-    msg.reply(ctx, format!("Added task `{}`", &taskname)).await?;
+    msg.reply(ctx, format!("Added task `{}`", &taskname))
+        .await?;
     Ok(())
 }
 
@@ -121,7 +118,6 @@ async fn list(ctx: &Context, msg: &Message) -> CommandResult {
             message.push_str(":red_circle:");
         }
         message.push_str(&format!("**{}** \n{}", task.name, task.description));
-
     }
     msg.reply(ctx, message).await?;
     Ok(())
@@ -129,15 +125,13 @@ async fn list(ctx: &Context, msg: &Message) -> CommandResult {
 
 #[help]
 async fn help_command(
-   context: &Context,
-   msg: &Message,
-   args: Args,
-   help_options: &'static HelpOptions,
-   groups: &[&'static CommandGroup],
-   owners: HashSet<UserId>
+    context: &Context,
+    msg: &Message,
+    args: Args,
+    help_options: &'static HelpOptions,
+    groups: &[&'static CommandGroup],
+    owners: HashSet<UserId>,
 ) -> CommandResult {
     let _ = help_commands::with_embeds(context, msg, args, help_options, groups, owners).await;
     Ok(())
 }
-
-
